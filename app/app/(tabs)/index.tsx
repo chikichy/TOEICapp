@@ -1,95 +1,153 @@
 // app/(tabs)/index.tsx
-//ホーム画面
+// ホーム画面
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+
+  // 上2つはスワイプに必要なやつ
+  Animated,
+  PanResponder,
+
+  // スワイプの横幅・縦幅を取る
+  Dimensions,
 } from "react-native";
 
-// ★ テストで使う単語リスト（あとで増やしてOK）
-const WORDS = [
+type Word = {
+  english: string;
+  japanese: string;
+  pos?: string;      // ← いったんオプションにしておく
+  example?: string;  // ← まだ使わないのでオプション
+};
+
+// テストで使う単語リスト
+const WORDS: Word[] = [
   { english: "apple", japanese: "りんご" },
   { english: "book", japanese: "本" },
   { english: "computer", japanese: "コンピュータ" },
   { english: "music", japanese: "音楽" },
 ];
 
+// スワイプ距離の設定
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const SWIPE_THRESHOLD = 120;
+
 export default function HomeScreen() {
   // どの単語を出題中か（0番目〜）
   const [index, setIndex] = useState(0);
-  // 今の状態：ready / question / answer
-  const [mode, setMode] = useState<"ready" | "question" | "answer">("ready");
 
-  const currentWord = WORDS[index];
+  // 覚えた数（右スワイプされた回数）
+  const [remembered, setRemembered] = useState(0);
 
-  // ボタンが押されたときの処理
-  const handlePress = () => {
-    if (mode === "ready") {
-      // テスト開始 → 1問目の「問題」を表示
-      setMode("question");
-    } else if (mode === "question") {
-      // 「答えを見る」
-      setMode("answer");
-    } else {
-      // 次の問題へ
-      const nextIndex = (index + 1) % WORDS.length;
-      setIndex(nextIndex);
-      setMode("question");
-    }
+  // 下のテキストとボタンのラベル（中身はあとで作るので仮）
+  const [message, setMessage] = useState("ボタンを押してスタート");
+  const [buttonLabel, setButtonLabel] = useState("テスト開始");
+
+  const position = useRef(new Animated.ValueXY()).current;
+
+  // PanResponder タッチスワイプする機能
+  const SWIPE_Proc = useRef(
+    PanResponder.create({
+      // 画面をタッチした瞬間に「このビューでスワイプを扱うよ」という設定
+      onStartShouldSetPanResponder: () => true,
+
+      // カードが指の動きに合わせてついていく仕組み
+      onPanResponderMove: Animated.event(
+        // 指の動きを position に入力
+        [
+          null,
+          { dx: position.x, dy: position.y },
+        ],
+        { useNativeDriver: false }
+      ),
+
+      // 指が離れたときのイベント
+      // gesture に指の動きの情報が入っている
+      onPanResponderRelease: (_, gesture) => {
+        // 横の移動距離が閾値以上ならスワイプ成功
+        if (Math.abs(gesture.dx) > SWIPE_THRESHOLD) {
+          // 正なら右　負なら左
+          const toRight = gesture.dx > 0;
+
+          if (toRight) {
+            // 右は記憶、左は覚えていない
+            setRemembered((r) => r + 1);
+          }
+
+          // 一定速度で、画面幅の外まで飛ばす
+          Animated.timing(position, {
+            toValue: {
+              x: toRight ? SCREEN_WIDTH : -SCREEN_WIDTH,
+              y: 0,
+            },
+            duration: 200,
+            useNativeDriver: true, // ← スペル修正！
+          }).start(() => {
+            // 飛び切ったあとに位置をリセットして次のカードへ
+            position.setValue({ x: 0, y: 0 });
+            setIndex((i) => i + 1);
+          });
+        } else {
+          // スワイプ距離が足りなかったときは元の位置にバネで戻す
+          Animated.spring(position, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+ //結果画面の作成
+ if(index >= WORDS.length){
+  return (
+    <View style={front.container}>
+      <Text style={front.title}>記憶モード　結果</Text>
+      <Text style={front.sectionText}>
+        覚えた単語:{remembered}/{WORDS.length}
+      </Text>
+      <Text style={front.sectionText}>アプリを再読み込みすると最初に戻るよ！</Text>
+    </View>
+  );
+ }
+
+ const current = WORDS[index];
+
+  const rotate = position.x.interpolate({
+    inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
+    outputRange: ["-15deg", "0deg", "15deg"]
+  });
+
+  const cardStyle = {
+    transform: [
+      { translateX: position.x },
+      { translateY: position.y },
+      { rotate }
+    ]
   };
 
-  // 状態に応じて表示するメッセージを切り替え
-  let message = "ボタンを押してテストを始めよう！";
-  if (mode === "question") {
-    message = `${currentWord.english} の意味は？`;
-  } else if (mode === "answer") {
-    message = `${currentWord.english}：${currentWord.japanese}`;
-  }
-
-  // ボタンに表示するテキストも切り替え
-  let buttonLabel = "テストをはじめる";
-  if (mode === "question") {
-    buttonLabel = "答えを見る";
-  } else if (mode === "answer") {
-    buttonLabel = "次の問題";
-  }
-
   return (
-    <View style={styles.container}>
-      {/* 上のエリア：タイトル＋説明 */}
-      <View>
-        <View style={styles.header}>
-          <Text style={styles.title}>片手でできる単語テスト</Text>
-          <Text style={styles.subtitle}>
-            親指だけでサクサク解ける、スマホ専用の英単語アプリ。
-          </Text>
-        </View>
+    <View style={front.container}>
+      <Text style={front.title}>スワイプで覚える単語帳</Text>
 
-        {/* 今日やること */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>今日やること</Text>
-          <Text style={styles.sectionText}>・単語リストから問題を出す</Text>
-          <Text style={styles.sectionText}>・答えを見る → 次の問題の流れを作る</Text>
-        </View>
-
-        {/* 単語メッセージ表示エリア */}
-        <View style={styles.messageBox}>
-          <Text style={styles.messageText}>{message}</Text>
-        </View>
-      </View>
-
-      {/* 下：親指で押しやすいボタン */}
-      <TouchableOpacity style={styles.mainButton} onPress={handlePress}>
-        <Text style={styles.mainButtonText}>{buttonLabel}</Text>
-      </TouchableOpacity>
+      <Animated.View
+        style={[front.messageBox, cardStyle]}
+        {...SWIPE_Proc.panHandlers}
+      >
+        <Text style={front.title}>{current.english}</Text>
+        <Text style={front.sectionText}>{current.japanese}</Text>
+        <Text style={front.sectionText}>
+          {index + 1} / {WORDS.length}
+        </Text>
+      </Animated.View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const front = StyleSheet.create({
   // 画面全体
   container: {
     flex: 1,
@@ -97,33 +155,17 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 24,
-    justifyContent: "space-between", // 上のエリアとボタンを上下に分ける
+    justifyContent: "flex-start",
+    alignItems: "center",
   },
 
-  header: {
-    marginBottom: 32,
-  },
   title: {
     fontSize: 26,
     fontWeight: "bold",
     color: "#ffffff",
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: "#cccccc",
-    lineHeight: 22,
-  },
 
-  section: {
-    marginTop: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#ffffff",
-    marginBottom: 8,
-  },
   sectionText: {
     fontSize: 15,
     color: "#dddddd",
@@ -132,29 +174,12 @@ const styles = StyleSheet.create({
 
   messageBox: {
     marginTop: 24,
-    padding: 12,
-    borderRadius: 8,
+    padding: 20,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#333333",
     backgroundColor: "#1e1e1e",
-  },
-  messageText: {
-    fontSize: 15,
-    color: "#ffffff",
-    lineHeight: 22,
-  },
-
-  mainButton: {
-    width: "100%",
-    paddingVertical: 18,
-    borderRadius: 999,
-    backgroundColor: "#ffffff",
+    width: "90%",
     alignItems: "center",
-    justifyContent: "center",
-  },
-  mainButtonText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#121212",
   },
 });
