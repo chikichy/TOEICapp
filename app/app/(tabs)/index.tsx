@@ -36,6 +36,9 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const SWIPE_THRESHOLD = 120;
 
 export default function HomeScreen() {
+  //どの画面化の状態
+  const[screen, setScreen] = useState<"home" | "memory">("home");
+
   // どの単語を出題中か（0番目〜）
   const [index, setIndex] = useState(0);
 
@@ -46,7 +49,24 @@ export default function HomeScreen() {
   const [message, setMessage] = useState("ボタンを押してスタート");
   const [buttonLabel, setButtonLabel] = useState("テスト開始");
 
+  //裏ture 表false
+  //isBack true/falseを維持
+  const[isBack, setIsBack] = useState(false);
+
   const position = useRef(new Animated.ValueXY()).current;
+
+  //記憶モードの状態をリセット
+  const resetMemory = () =>{
+    //単語は0番目
+    setIndex(0);
+    //覚えた下図のリセット
+    setRemembered(0);
+    //表にリセット
+    setIsBack(false);
+    //アニメーションを即座に指定した値に戻す
+    position.setValue({x:0, y:0});
+  };
+
 
   // PanResponder タッチスワイプする機能
   const SWIPE_Proc = useRef(
@@ -89,6 +109,9 @@ export default function HomeScreen() {
             // 飛び切ったあとに位置をリセットして次のカードへ
             position.setValue({ x: 0, y: 0 });
             setIndex((i) => i + 1);
+            //新しいカードは「表から」
+            //constで定義した関数
+            setIsBack(false);
           });
         } else {
           // スワイプ距離が足りなかったときは元の位置にバネで戻す
@@ -101,18 +124,67 @@ export default function HomeScreen() {
     })
   ).current;
 
- //結果画面の作成
- if(index >= WORDS.length){
-  return (
-    <View style={front.container}>
-      <Text style={front.title}>記憶モード　結果</Text>
-      <Text style={front.sectionText}>
-        覚えた単語:{remembered}/{WORDS.length}
-      </Text>
-      <Text style={front.sectionText}>アプリを再読み込みすると最初に戻るよ！</Text>
-    </View>
-  );
- }
+  // ホーム画面の作成
+  if (screen === "home") {
+    return (
+      <View style={front.container}>
+        <Text style={front.title}>単語APP</Text>
+        <Text style={front.sectionText}>モードを選んで</Text>
+
+        <View style={{ width: "100%", marginTop: 24 }} />
+
+        {/* 記憶モード */}
+        <TouchableOpacity
+          style={front.messageBox}
+          onPress={() => {
+            resetMemory();
+            setScreen("memory");
+          }}
+        >
+          <Text style={front.title}>記憶モード</Text>
+          <Text style={front.sectionText}>
+            覚えた単語をスワイプで分けよう
+          </Text>
+        </TouchableOpacity>
+
+        {/* テストモード */}
+        <TouchableOpacity
+          style={[front.messageBox, { opacity: 0.5, margin: 16 }]}
+          // TouchableOpacity専用の見た目設定 押している間の透明度設定 1は変わらん
+          activeOpacity={1}
+        >
+          <Text style={front.title}>テストモード(まだ準備)</Text>
+          <Text style={front.sectionText}>4拓テストができる場所</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+      
+      //結果画面の作成
+      if(index >= WORDS.length){
+        return (
+          <View style={front.container}>
+            <Text style={front.title}>記憶モード　結果</Text>
+            <Text style={front.sectionText}>
+              覚えた単語:{remembered}/{WORDS.length}
+            </Text>
+            <Text style={front.sectionText}>おつかれさま！</Text>
+
+            <TouchableOpacity
+              style={[front.messageBox,{marginTop: 24}]}
+              onPress={() => {
+                resetMemory();
+                setScreen("home");
+              }}
+            >
+              <Text style = {front.messageBox}>
+                ホーム画面に戻る
+              </Text>
+            </TouchableOpacity>
+        </View>
+      );
+    }
 
  const current = WORDS[index];
 
@@ -137,11 +209,34 @@ export default function HomeScreen() {
         style={[front.messageBox, cardStyle]}
         {...SWIPE_Proc.panHandlers}
       >
-        <Text style={front.title}>{current.english}</Text>
-        <Text style={front.sectionText}>{current.japanese}</Text>
-        <Text style={front.sectionText}>
-          {index + 1} / {WORDS.length}
-        </Text>
+        <TouchableOpacity
+        //ボタンを押すと薄くなる
+          activeOpacity={0.8}
+          //押されたときに反転させる　表裏
+          onPress={() => setIsBack((prev) => !prev)}
+          //コンポーネントのスタイル設定
+          style={{ width: "100%", alignItems: "center" }}
+        >
+        
+          {/* 表側：英単語 */}
+          {!isBack && (
+            <>
+              <Text style={front.title}>{current.english}</Text>
+              <Text style={front.sectionText}>タップで意味を表示</Text>
+            </>
+          )}
+
+          {/* 裏側：日本語の意味 */}
+          {isBack && (
+            <>
+              <Text style={front.title}>{current.japanese}</Text>
+              <Text style={front.sectionText}>タップで英単語に戻る</Text>
+            </>
+          )}
+          <Text style={front.sectionText}>
+             {index + 1} / {WORDS.length}
+          </Text>   
+        </TouchableOpacity>
       </Animated.View>
     </View>
   );
