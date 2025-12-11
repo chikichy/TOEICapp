@@ -16,20 +16,9 @@ import {
   Dimensions,
 } from "react-native";
 
-type Word = {
-  english: string;
-  japanese: string;
-  pos?: string;      // ← いったんオプションにしておく
-  example?: string;  // ← まだ使わないのでオプション
-};
-
-// テストで使う単語リスト
-const WORDS: Word[] = [
-  { english: "apple", japanese: "りんご" },
-  { english: "book", japanese: "本" },
-  { english: "computer", japanese: "コンピュータ" },
-  { english: "music", japanese: "音楽" },
-];
+//別ファイルから読み込む
+//単語を持ってくる関数 
+import{Word,fetchWordsMock, WordLevel} from "../words";
 
 // スワイプ距離の設定
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -37,7 +26,7 @@ const SWIPE_THRESHOLD = 120;
 
 export default function HomeScreen() {
   //どの画面化の状態
-  const[screen, setScreen] = useState<"home" | "memory">("home");
+  const[screen, setScreen] = useState<"home" | "memory" |"test">("home");
 
   // どの単語を出題中か（0番目〜）
   const [index, setIndex] = useState(0);
@@ -48,6 +37,15 @@ export default function HomeScreen() {
   // 下のテキストとボタンのラベル（中身はあとで作るので仮）
   const [message, setMessage] = useState("ボタンを押してスタート");
   const [buttonLabel, setButtonLabel] = useState("テスト開始");
+
+  //今ロードされている単語
+  const[words, setWords]= useState<Word[]>([]);
+
+  //単語読み込みの確認
+  const[loadingWords, setLoadingWords]=useState(false);
+
+  //単語ロード時のエラー　文章の表示関数
+  const[wordError, setWordError] = useState<string | null>(null);
 
   //裏ture 表false
   //isBack true/falseを維持
@@ -65,6 +63,42 @@ export default function HomeScreen() {
     setIsBack(false);
     //アニメーションを即座に指定した値に戻す
     position.setValue({x:0, y:0});
+  };
+
+  //単語データの読み込み処理
+  const loadWords = async(level: WordLevel) => {
+    //データを取りに行く
+      try{
+        //単語の読み込み
+        setLoadingWords(true);
+        //単語ロード時のエラー処理
+        setWordError(null);
+
+        //await時間のかかる処理をする際の宣言
+        const result = await fetchWordsMock(level);
+
+        //新しく保存したいデータを保存する
+        //使いたい単語の更新
+        setWords(result);
+        //0番目からセット
+        setIndex(0);
+        //覚えた単語の数のリセット
+        setRemembered(0);
+        //表状態
+        setIsBack(false);
+        position.setValue({x:0,y:0});
+    }
+    //tryでエラーが起きたときだけ実行される
+    catch(e){
+      //エラーの原因をコンソールに表示
+      console.error(e);
+      //ユーザーに表示するエラー文
+      setWordError("単語データの読み込みに失敗");
+    }
+    //エラーでも成功でも絶対に実行される
+    finally{
+      setLoadingWords(false);
+    }
   };
 
 
@@ -136,8 +170,9 @@ export default function HomeScreen() {
         {/* 記憶モード */}
         <TouchableOpacity
           style={front.messageBox}
-          onPress={() => {
-            resetMemory();
+          onPress={async() => {
+            //600点レベル
+            await loadWords("600");
             setScreen("memory");
           }}
         >
@@ -150,8 +185,9 @@ export default function HomeScreen() {
         {/* テストモード */}
         <TouchableOpacity
           style={[front.messageBox, { opacity: 0.5, margin: 16 }]}
-          // TouchableOpacity専用の見た目設定 押している間の透明度設定 1は変わらん
-          activeOpacity={1}
+          onPress={() => {
+            setScreen("test");
+          }}   
         >
           <Text style={front.title}>テストモード(まだ準備)</Text>
           <Text style={front.sectionText}>4拓テストができる場所</Text>
@@ -160,14 +196,59 @@ export default function HomeScreen() {
     );
   }
 
+  //テストモード
+  if(screen === "test"){
+    return (
+      <View style={front.container}>
+        <Text style={front.title}>テストモード</Text>
+        <Text style={front.sectionText}>
+          4択テストを作る
+        </Text>
+
+        <TouchableOpacity
+          style={[front.messageBox,{marginTop: 24}]}
+          onPress={() => setScreen("home")}
+        >
+          <Text style={front.sectionText}>ホーム画面に戻る</Text>
+
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // 読み込み中
+  if (screen === "memory" && loadingWords) {
+    return (
+      <View style={front.container}>
+        <Text style={front.title}>記憶モード</Text>
+        <Text style={front.sectionText}>単語読み込み中</Text>
+      </View>
+    );
+  }
+
+  // 読み込み後だけど空
+  if (screen === "memory" && !loadingWords && words.length === 0) {
+    return (
+      <View style={front.container}>
+        <Text style={front.title}>記憶モード</Text>
+        <Text style={front.sectionText}>
+          単語データがありません。ホームに戻ってください
+        </Text>
+      </View>
+    );
+  }
+
+  const current = words[index];
+
       
       //結果画面の作成
-      if(index >= WORDS.length){
+      //（index）が単語の数をこえたら終了
+      if(words.length> 0 && index>= words.length){
         return (
           <View style={front.container}>
             <Text style={front.title}>記憶モード　結果</Text>
             <Text style={front.sectionText}>
-              覚えた単語:{remembered}/{WORDS.length}
+              覚えた単語:{remembered}/{words.length}
             </Text>
             <Text style={front.sectionText}>おつかれさま！</Text>
 
@@ -185,8 +266,6 @@ export default function HomeScreen() {
         </View>
       );
     }
-
- const current = WORDS[index];
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
@@ -234,7 +313,7 @@ export default function HomeScreen() {
             </>
           )}
           <Text style={front.sectionText}>
-             {index + 1} / {WORDS.length}
+             {index + 1} / {words.length}
           </Text>   
         </TouchableOpacity>
       </Animated.View>
