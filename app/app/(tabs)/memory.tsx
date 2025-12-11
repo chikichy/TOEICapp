@@ -1,5 +1,9 @@
 //記憶モード画面
-import react, {useState} from "react";
+import React, { useState,useEffect } from "react";
+
+//aiで単語を呼び出す機能import
+import { fetchWordsAI } from "../api/ai";
+
 
 import{ 
     View,
@@ -33,72 +37,113 @@ const WORDS: Word[] = [
 
 //example defalut functionは；いらない
 export default function MemoryGAMEN(){
-    //どの単語を表示しているか
-    const[word, updateWord] = useState(0);
-    //カードの表裏
-    //false:表　英単語のみ, true:裏 意味などを表示
-    const[showPage, setShowPage]= useState(false);
+  //AIテスト
+  const testAI = async () => {
+    const result = await fetchWordsAI();
+    console.log("AIから帰ってきた単語リスト",result);
+  };
 
-    const currentWords = WORDS[word];
+  //単語リストの状態
+  const[words, setWords] = useState<Word[]>(WORDS);
+  //どの単語を表示しているか
+  const[word, updateWord] = useState(0);
+  //カードの表裏
+  //false:表　英単語のみ, true:裏 意味などを表示
+  const[showPage, setShowPage]= useState(false);
+
+  const currentWords = WORDS[word];
     
-    //カードをタップしたとき
-    //前の値をひっくり返す
-    //setShowPage ページを表示する関数
-    const TapDatail = () => {
-        setShowPage((prev) => !prev);
-    };
+  //カードをタップしたとき
+  //前の値をひっくり返す
+  //setShowPage ページを表示する関数
+  const TapDatail = () => {
+    const nextWord = (word+1) % words.length;
+    updateWord(nextWord);
+    setShowPage((prev) => !prev);
+  };
 
     //次の単語
     const TapNextWord = () => {
-        const nextWord = (word+1) % WORDS.length;
+        const nextWord = (word+1) % words.length;
         updateWord(nextWord);
         setShowPage(false); //ページを表で表示
     };
 
 
-    return(
-        <View style={a.container}>
-            <Text style={a.title}>記憶モード</Text>
-            <Text style= {a.subtitle}>カードをタップして,ほにゃほにゃ</Text>
+    return (
+    <View style={front.container}>
+      <Text style={front.title}>記憶モード</Text>
+      <Text style={front.subtitle}>カードをタップして,ほにゃほにゃ</Text>
 
-            {/*単語カード　タップで裏表 ゆくゆくはスワイプで */}
-            <TouchableOpacity style={a.card} onPress={TapNextWord}>
-                {!showPage ?(
-                    //表　英単語のみ
-                    //WORDSのオブジェクト
-                    //japanese,eniglish,pos...etc
-                    <View style={a.cardLine}>
-                        <Text style={a.nameLabel}>英単語</Text>
-                        <Text style={a.englishExam}>{currentWords.english}</Text>
-                        <Text style={a.mean}>押したら意味を表示</Text>
-                    </View>
-                ):(
-                    //裏：意味・品詞・例文
-                    <View style={a.cardLine}>
-                        <Text style={a.IMI}>意味</Text>
-                        <Text style={a.meanText}>
-                        {currentWords.japanese}({currentWords.pos})
-                        </Text>
+      {/* 単語カード */}
+      <TouchableOpacity style={front.card} onPress={TapNextWord}>
+        {!showPage ? (
+          // 表：英単語のみ
+          <View style={front.cardLine}>
+            <Text style={front.nameLabel}>英単語</Text>
+            {/*?データが入ってなかったときの保険*/}
+            <Text style={front.englishExam}>{currentWord?.english}</Text>
+            <Text style={front.mean}>押したら意味を表示</Text>
+          </View>
+        ) : (
+          // 裏：意味・品詞・例文
+          <View style={front.cardLine}>
+            <Text style={front.IMI}>意味</Text>
+            <Text style={front.meanText}>
+              {currentWord?.japanese} ({currentWord?.pos})
+            </Text>
 
-                        <View style={a.exaBox}>
-                            <Text style={a.exaLabel}>使い方</Text>
-                            <Text style={a.exaText}>{currentWords.example}</Text>
-                        </View>
+            <View style={front.exaBox}>
+              <Text style={front.exaLabel}>使い方</Text>
+              <Text style={front.exaText}>{currentWord?.example}</Text>
+            </View>
 
-                        <Text style={a.hint}>もう一度タップで英単語</Text>
-                    </View> 
-                )}
-            </TouchableOpacity>
+            <Text style={front.hint}>もう一度タップで英単語</Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
-            {/* 次の単語へボタン*/}
-            <TouchableOpacity style={a.nextButton}  onPress={TapNextWord}>
-                <Text style={a.nextButton}>次の単語</Text>
-            </TouchableOpacity>
-        </View>   
-    );
+      {/* 次の単語へボタン */}
+      <TouchableOpacity style={front.nextButton} onPress={TapNextWord}>
+        <Text style={front.nextButtonText}>次の単語</Text>
+      </TouchableOpacity>
+
+      {/* AIテストボタン */}
+      <TouchableOpacity
+        style={[front.nextButton, { marginTop: 12, backgroundColor: "#4caf50" }]}
+        onPress={testAI}
+      >
+        <Text style={front.nextButtonText}>AIテスト</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  useEffect(()=>{
+    const loadFromAI = async () => {
+      try{
+        //単語データを取りにいてresultに格納
+        const result = await fetchWordsAI();
+        console.log("AIから取得：",result);
+        //resultの格納
+        setWords(result);
+        updateWord(0);
+        //表を表示
+        setShowPage(false);
+      }catch(e){
+        //エラー時の処理
+        //error: エラー用メソッド
+        //e: 受けっとったエラー内容
+        console.error("AI取得失敗",e);
+      }
+    };
+
+    
+    loadFromAI();
+}, []);
+
 }
 
-const a = StyleSheet.create({
+const front = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#121212",
