@@ -1,4 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect,useState } from "react";
+
+// AIで単語を呼び出す機能
+import { fetchWordsAI } from "../api/ai";
+
 import {
   SafeAreaView,
   View,
@@ -8,6 +12,13 @@ import {
   ScrollView,
 } from "react-native";
 
+type Word = {
+  english: string;
+  japanese: string;
+  pos?: string;
+  example?: string;
+};
+
 //ダミータイプ
 type Question ={
   english: string;  //英単語
@@ -15,6 +26,7 @@ type Question ={
   correctIndex: number; //何番目の正解か
 };
 
+/*
 const questions: Question[] =[
   {
     english: "accomplish",
@@ -32,8 +44,11 @@ const questions: Question[] =[
     correctIndex: 0,
   },
 ];
+*/
 
 const TestScreen: React.FC = () => {
+  // テスト用の問題リスト
+  const [questions, setQuestions] = useState<Question[]>([]);
   // 今何問目か（0,1,2,…）
   const [currentIndex, setCurrentIndex] = useState(0);
   // ユーザーが選んだ選択肢（まだ選んでなければ null）
@@ -43,6 +58,12 @@ const TestScreen: React.FC = () => {
   // テストが終わったかどうか
   const [isFinished, setIsFinished] = useState(false);
   const currentQuestion = questions[currentIndex];
+
+  // AI単語
+  const [words, setWords] = useState<Word[]>([]);
+  const [loadingWords, setLoadingWords] = useState(true);
+  const [wordError, setWordError] = useState<string | null>(null);
+
 
   //選択肢をタップしたときの処理
   //indexはnumber型しか受け取らない
@@ -74,6 +95,107 @@ const TestScreen: React.FC = () => {
     }
   };
 
+  useEffect(()=>{
+    //時間がかかる処理
+    const loadFromAI = async ()=> {
+      try{
+        //読み込み中表示
+        setLoadingWords(true);
+        //エラーメッセージなし
+        setWordError(null);
+
+        const result = await fetchWordsAI();
+        console.log("AIから取得(テスト)",result);
+        //配列の中身が空か配列じゃなかったら実行
+        if(!Array.isArray(result) || result.length === 0){
+          setWordError("テストに使える単語がありません");
+          //問題リストを空にする
+          setQuestions([]);
+          return;
+        }
+        //取得した単語を保存
+        setWords(result);
+
+        //単語をテスト問題に変換する
+        const qs = createQuestionsFromWords(result);
+        setQuestions(qs);
+
+        //テスト状態をリセット
+        //今何問目かをリセット
+        setCurrentIndex(0);
+        //選択肢を未選択
+        setSelectedIndex(null);
+        //正解数
+        setScore(0);
+        //テスト終了フラグ
+        setIsFinished(false);
+
+      }catch(e){
+        //エラー時
+        console.error("AI取得失敗(テスト)", e);
+        setWordError("単語データの読み込みに失敗しました");
+      }finally{
+        //ローディングを終わらせる
+        setLoadingWords(false);
+      }
+    };
+    //実行
+    loadFromAI();
+  },[]);
+
+    // ローディング中
+  if (loadingWords) {
+    return (
+      <SafeAreaView style={front.safe}>
+        <View style={front.center}>
+          <Text style={front.message}>単語を読み込み中です...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // エラー
+  if (wordError) {
+    return (
+      <SafeAreaView style={front.safe}>
+        <View style={front.center}>
+          <Text style={front.error}>{wordError}</Text>
+          <TouchableOpacity
+            style={front.nextButton}
+            onPress={() => {
+              // もう一度読み込み
+              setIsFinished(false);
+              setCurrentIndex(0);
+              setSelectedIndex(null);
+              setScore(0);
+              // ↑ useEffect が再度走るようにしたいなら工夫もできるけど、
+              // ひとまずは画面をリロードすればOK
+            }}
+          >
+            <Text style={front.nextButtonText}>もう一度試す</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // 問題が一つも作れなかったとき
+  if (questions.length === 0) {
+    return (
+      <SafeAreaView style={front.safe}>
+        <View style={front.center}>
+          <Text style={front.message}>
+            出題に使える問題がありません。
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ここまで来たら安全に currentQuestion を使える
+  //const currentQuestion = questions[currentIndex];
+
+  
   //テスト終了後の画面
   if(isFinished){
     const total = questions.length;
@@ -165,7 +287,7 @@ const TestScreen: React.FC = () => {
           //選択肢を選んでいない時は押せない
           disabled={selectedIndex === null}
         >
-          //最後の問題かどうかを判別
+          {/*最後の問題かどうかを判別*/}
           <Text style={front.nextButtonText}>
             {currentIndex === questions.length - 1 ? "結果を見る" : "次の問題へ"}
           </Text>
@@ -173,6 +295,50 @@ const TestScreen: React.FC = () => {
       </View>
     </SafeAreaView>
   );
+};
+
+// 配列シャッフル用（フィッシャー–イェーツ法）
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const copied = [...array];
+  for (let i = copied.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copied[i], copied[j]] = [copied[j], copied[i]];
+  }
+  return copied;
+};
+
+// AIから来た単語リスト → テスト用の Question[] に変換
+const createQuestionsFromWords = (words: Word[]): Question[] => {
+  // 単語の順番をシャッフル
+  const shuffledWords = shuffleArray(words);
+
+  // 1回のテストで出す問題数（多すぎると大変なので10問まで）
+  const MAX_QUESTIONS = 10;
+  const selectedWords = shuffledWords.slice(0, MAX_QUESTIONS);
+
+  return selectedWords.map((w) => {
+    // w 以外の単語からダミー選択肢を作る
+    const others = words.filter((other) => other.english !== w.english);
+    const shuffledOthers = shuffleArray(others);
+    const distractors = shuffledOthers.slice(0, 3); // 3つ分
+
+    // 正解＋ダミーの日本語だけ抜き出し
+    const allChoices = shuffleArray([
+      w.japanese,
+      ...distractors.map((d) => d.japanese),
+    ]);
+
+    // 正解が今どの位置にいるか調べる
+    const correctIndex = allChoices.findIndex(
+      (jp) => jp === w.japanese
+    );
+
+    return {
+      english: w.english,
+      choices: allChoices,
+      correctIndex,
+    };
+  });
 };
 
 export default TestScreen;
@@ -267,4 +433,7 @@ const front = StyleSheet.create({
     fontSize: 20,
     marginTop: 8,
   },
+  scoretext:{},
+  error:{},
+  message:{},
 });
