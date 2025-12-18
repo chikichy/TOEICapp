@@ -9,6 +9,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  SafeAreaView,
 } from "react-native";
 
 type Word = {
@@ -80,146 +81,165 @@ export default function MemoryGAMEN() {
   // currentWord がまだ決まってないときの保険
   if (!currentWord) {
     return (
-      <View style={front.container}>
-        <Text style={front.title}>記憶モード</Text>
-        <Text style={front.subtitle}>単語を読み込み中...</Text>
-      </View>
+      <SafeAreaView style={front.safe}>
+        <View style={front.container}>
+          <Text style={front.title}>記憶モード</Text>
+          <Text style={front.subtitle}>単語を読み込み中...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={front.container}>
-      <Text style={front.title}>記憶モード</Text>
-      <Text style={front.subtitle}>カードをタップして,ほにゃほにゃ</Text>
+    <SafeAreaView style={front.safe}>
+      <View style={front.container}>
+        <Text style={front.title}>記憶モード</Text>
+        <Text style={front.subtitle}>カードをタップして表⇄裏を切り替え</Text>
 
-      {/* 単語カード */}
-      <TouchableOpacity style={front.card} onPress={TapDetail}>
-        {!showPage ? (
-          // 表：英単語のみ
-          <View style={front.cardLine}>
-            <Text style={front.nameLabel}>英単語</Text>
-            {/* データが入ってなかったときの保険として ?. を使用 */}
-            <Text style={front.englishExam}>{currentWord.english}</Text>
-            <Text style={front.mean}>押したら意味を表示</Text>
-          </View>
-        ) : (
-          // 裏：意味・品詞・例文
-          <View style={front.cardLine}>
-            <Text style={front.IMI}>意味</Text>
-            <Text style={front.meanText}>
-              {currentWord.japanese} ({currentWord.pos})
-            </Text>
+        {/* 進捗（Testっぽく） */}
+        <Text style={front.progress}>
+          {wordIndex + 1} / {words.length}
+        </Text>
 
-            <View style={front.exaBox}>
-              <Text style={front.exaLabel}>使い方</Text>
-              <Text style={front.exaText}>{currentWord.example}</Text>
+        {/* 単語カード */}
+        <TouchableOpacity style={front.card} onPress={TapDetail} activeOpacity={0.8}>
+          {!showPage ? (
+            // 表：英単語のみ
+            <View style={front.cardLine}>
+              <Text style={front.label}>英単語</Text>
+              <Text style={front.bigWord}>{currentWord.english}</Text>
+              <Text style={front.hint}>タップで意味を表示</Text>
             </View>
+          ) : (
+            // 裏：意味・品詞・例文
+            <View style={front.cardLine}>
+              <Text style={front.label}>意味</Text>
+              <Text style={front.meanText}>
+                {currentWord.japanese}（{currentWord.pos}）
+              </Text>
 
-            <Text style={front.hint}>もう一度タップで英単語</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+              <View style={front.exaBox}>
+                <Text style={front.exaLabel}>使い方</Text>
+                <Text style={front.exaText}>{currentWord.example}</Text>
+              </View>
 
-      {/* 次の単語へボタン */}
-      <TouchableOpacity style={front.nextButton} onPress={TapNextWord}>
-        <Text style={front.nextButtonText}>次の単語</Text>
-      </TouchableOpacity>
-    </View>
+              <Text style={front.hint}>もう一度タップで英単語</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* 次の単語へボタン（Testと同じ緑） */}
+        <TouchableOpacity style={front.nextButton} onPress={TapNextWord} activeOpacity={0.8}>
+          <Text style={front.nextButtonText}>次の単語</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const front = StyleSheet.create({
+  // Testと同じ背景
+  safe: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+  },
   container: {
     flex: 1,
-    backgroundColor: "#121212",
-    alignItems: "center", // 横方向
-    justifyContent: "center", // 縦方向
-    paddingHorizontal: 16,
+    padding: 16,
+    justifyContent: "flex-start",
   },
+
+  // Test寄せの見出し
   title: {
-    fontSize: 26,
-    color: "#ffffff",
-    marginBottom: 12,
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#dddddd",
-    textAlign: "center",
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 12,
+  },
+  progress: {
+    fontSize: 14,
     marginBottom: 16,
   },
+
   card: {
     width: "100%",
-    maxWidth: 360,
     marginBottom: 16,
   },
+
+  // TestのquestionBox/白カード寄せ
   cardLine: {
     width: "100%",
     minHeight: 220,
-    borderRadius: 16,
-    backgroundColor: "#1e1e1e",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#333333",
-    padding: 20,
+    borderColor: "#ddd",
+    padding: 16,
     justifyContent: "center",
+
+    // 影（Testと同様）
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
-  nameLabel: {
+
+  label: {
     fontSize: 14,
-    color: "#aaaaaa",
+    color: "#666",
     marginBottom: 8,
   },
-  englishExam: {
+
+  bigWord: {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#ffffff",
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  mean: {
-    fontSize: 14,
-    color: "#cccccc",
-  },
-  IMI: {
-    fontSize: 14,
-    color: "#aaaaaa",
-    marginBottom: 8,
-  },
+
   meanText: {
     fontSize: 22,
-    color: "#ffffff",
-    marginBottom: 16,
+    marginBottom: 12,
   },
+
   exaBox: {
     width: "100%",
     padding: 12,
     borderRadius: 8,
-    backgroundColor: "#252525",
+    backgroundColor: "#f3f3f3",
     marginBottom: 12,
   },
   exaLabel: {
     fontSize: 13,
-    color: "#aaaaaa",
+    color: "#666",
     marginBottom: 4,
   },
   exaText: {
     fontSize: 14,
-    color: "#ffffff",
+    color: "#222",
   },
+
   hint: {
     fontSize: 12,
-    color: "#888888",
+    color: "#777",
     marginTop: 8,
   },
+
+  // Testと同じ緑ボタン
   nextButton: {
-    width: "100%",
-    maxWidth: 360,
     paddingVertical: 14,
-    borderRadius: 999,
-    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    backgroundColor: "#4caf50",
     alignItems: "center",
-    justifyContent: "center",
+    marginTop: 4,
   },
   nextButtonText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#121212",
+    color: "#fff",
   },
 });
